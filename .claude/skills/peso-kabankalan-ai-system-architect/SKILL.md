@@ -237,10 +237,13 @@ Keep the **filename stable** (both imports rely on it) and don't leave a `NEW PE
 lying around — overwrite in place. This is DISTINCT from the referral-letter letterhead
 (`assets/letterhead/letterhead.png`), which is unaffected by logo changes.
 
-Remote is `github.com/Angelo55/PESO-Kabankalan`; `main` is current. The tag
-`stable-pre-f8` marks the state before the final referral phase. The main
-checkout at `C:\xampp\htdocs\job-tracker-backend` is the runtime
-(XAMPP + `npm run dev`).
+Remote (THIS VPS/Supabase repo) is `github.com/Angelo55/PESOKabankalanVPS`;
+`main` is current; local checkout `C:\PESOKabankalanVPS\job-tracker-backend`
+(dev: `npm run dev` for the API + `npm --prefix job-tracker-frontend run dev`
+for the SPA). The original TiDB/Render line lives in a separate repo
+(`github.com/Angelo55/PESO-Kabankalan`, historical checkout
+`C:\xampp\htdocs\job-tracker-backend`), where the tag `stable-pre-f8` marks the
+state before the final referral phase.
 
 ## 4. Roles & RBAC
 
