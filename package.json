@@ -1,0 +1,52 @@
+{
+	"name": "job-tracker-backend",
+	"version": "1.0.0",
+	"description": "",
+	"main": "index.js",
+	"scripts": {
+		"start": "node server.js",
+		"worker": "node worker.js",
+		"dev": "nodemon server.js",
+		"dev:web": "cross-env WORKER_MODE=web nodemon server.js",
+		"dev:worker": "nodemon worker.js",
+		"migrate": "node scripts/migrate.js",
+		"migrate:status": "node scripts/migrate.js status",
+		"migrate:event-banners": "node scripts/migrate-event-banners-to-r2.js",
+		"cleanup:dead-images": "node scripts/nullify-dead-local-images.js",
+		"eval:scoring": "node scripts/eval-scoring.js",
+		"eval:resume": "node scripts/eval-resume-analysis.js",
+		"test": "node --test"
+	},
+	"keywords": [],
+	"author": "",
+	"license": "ISC",
+	"type": "commonjs",
+	"dependencies": {
+		"@aws-sdk/client-s3": "^3.1126.0",
+		"axios": "^1.18.1",
+		"bcryptjs": "^3.0.3",
+		"cookie-parser": "^1.4.7",
+		"cors": "^2.8.6",
+		"dotenv": "^17.4.2",
+		"express": "^5.2.1",
+		"express-rate-limit": "^8.5.2",
+		"form-data": "^4.0.5",
+		"google-auth-library": "^10.6.2",
+		"helmet": "^8.2.0",
+		"jsonwebtoken": "^9.0.3",
+		"mammoth": "^1.12.2",
+		"multer": "^2.2.0",
+		"mysql2": "^3.22.3",
+		"nodemailer": "^9.0.3",
+		"pdf-extraction": "^1.0.2",
+		"pdf-parse": "^2.4.5",
+		"pdfkit": "^0.19.1",
+		"pg": "^8.23.0",
+		"socket.io": "^4.8.3",
+		"xlsx": "^0.18.5"
+	},
+	"devDependencies": {
+		"cross-env": "^10.1.0",
+		"nodemon": "^3.1.14"
+	}
+}

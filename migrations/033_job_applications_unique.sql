@@ -1,0 +1,33 @@
+-- ============================================================================
+-- 033_job_applications_unique.sql  —  Proactive AI Referral (Phase 4, hardening)
+--
+-- WHAT THIS ADDS
+-- A hard UNIQUE(job_id, applicant_id) on job_applications — one application per
+-- (seeker, job) at the DATABASE level. Until now this was enforced only in
+-- application code (applicationRoutes duplicate check + the proactive materializer's
+-- guard). Making it a DB invariant closes the last race window: two concurrent
+-- submissions, or a seeker applying at the same instant an administrator promotes a
+-- proactive referral for the same vacancy, can no longer both land a row.
+--
+-- ── GUARDED ROLLOUT (READ THIS) ─────────────────────────────────────────────
+-- Adding a UNIQUE constraint FAILS if duplicate (job_id, applicant_id) pairs already
+-- exist. On TiDB this failure is NON-DESTRUCTIVE — it reports the conflict and
+-- changes nothing — so attempting the migration is safe. Because the application
+-- has always blocked duplicate applications at the service layer, production is
+-- expected to be clean, but VERIFY FIRST with this read-only query:
+--
+--     SELECT job_id, applicant_id, COUNT(*) c
+--     FROM job_applications
+--     GROUP BY job_id, applicant_id
+--     HAVING c > 1;
+--
+-- If it returns rows, resolve those duplicates before running this migration, then
+-- re-run `npm run migrate` (a failed migration is not recorded as applied, so it is
+-- safe to re-run once the data is clean).
+--
+-- SAFETY: no data is written or deleted here; it only adds an index. If it fails on
+-- a duplicate, nothing changed — fix the data and re-run.
+-- ============================================================================
+
+ALTER TABLE job_applications
+    ADD UNIQUE INDEX uq_job_applicant (job_id, applicant_id);

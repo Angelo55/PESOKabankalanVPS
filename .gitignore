@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+
+# Secrets -- never commit credentials
+.env
+.env.*
+# ...but DO commit the templates (they carry keys + guidance, never values).
+!.env.example
+!**/.env.example
+
+# Stray nested git repo accidentally left in the tree (README-only, has its own
+# .git) — never part of the app; keep it out of this repository entirely.
+job track/
+
+# Logs
+*.log
+server-restart.log
+
+# Runtime artifacts (regenerated / user-uploaded at runtime)
+uploads/
+storage/
+
+# Local automation artifacts + datasets (kept on disk, NOT part of the app):
+# the n8n export, the Make.com import blueprints, and the seed/reference CSVs.
+*.blueprint.json
+My workflow*.json
+*_datasets.csv
+
+# Claude Code session files and worktrees.
+#
+# `.claude/*` rather than `.claude/` on purpose: git does not descend into an
+# excluded DIRECTORY, so a later `!.claude/skills/` would never be evaluated.
+# Excluding the CONTENTS instead leaves the directory itself readable, which is
+# what makes the negation below work.
+.claude/*
+
+# The architecture skill IS project documentation and belongs in version
+# control -- it is the reference used for the system proposal and technical
+# defence. Keeping it untracked meant a clone or a fresh worktree silently had
+# no copy, and the only version was whatever sat on one developer's machine.
+!.claude/skills/
+
+# Custom subagents are project tooling (e.g. the architecture guardian) and belong
+# in version control too, so a clone gets them — same rationale as the skill above.
+!.claude/agents/
+
+# Everything else under .claude/ stays out: worktrees are checkouts of this same
+# repository, and session state is per-machine noise.
+.claude/worktrees/

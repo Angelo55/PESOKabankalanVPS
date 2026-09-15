@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PESO Kabankalan | AI-Powered Job Seeker Tracking & Career Recommendation</title>
+    <meta name="description" content="The official digital employment portal of the Public Employment Service Office (PESO) of Kabankalan City. Connecting job seekers and employers through AI-powered job matching, application tracking, and career guidance." />
+    <!-- Pre-paint theme bootstrap: apply the saved theme to <html> BEFORE first
+         paint so there is no light-to-dark flash (FOUC). Mirrors ThemeContext's
+         resolution (stored preference, else the OS setting). Kept inline + tiny on
+         purpose; ThemeContext takes over once React mounts. -->
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem('theme');
+          var dark = saved ? saved === 'dark'
+                           : window.matchMedia('(prefers-color-scheme: dark)').matches;
+          if (dark) document.documentElement.classList.add('dark');
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

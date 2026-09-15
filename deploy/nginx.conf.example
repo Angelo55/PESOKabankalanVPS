@@ -1,0 +1,60 @@
+# Nginx reverse proxy for the single-origin VPS deploy.
+#
+# The built SPA (job-tracker-frontend/dist) is served as static files; /api and
+# /socket.io are proxied to the Node API on 127.0.0.1:5000. Same-origin means the
+# SPA needs no CORS and cookies/JWT flow cleanly.
+#
+# 1. Copy to /etc/nginx/sites-available/pesokabankalan and symlink into
+#    sites-enabled, then `nginx -t && systemctl reload nginx`.
+# 2. Obtain TLS with:  certbot --nginx -d pesokabankalan.tech -d www.pesokabankalan.tech
+#    (certbot rewrites the :80 server block to redirect to :443 and injects the
+#    ssl_certificate lines — leave the plain :80 block below for it to edit.)
+# 3. Adjust `root` to the absolute path of job-tracker-frontend/dist on the host.
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name pesokabankalan.tech www.pesokabankalan.tech;
+
+    # Built SPA
+    root /var/www/pesokabankalan/job-tracker-frontend/dist;
+    index index.html;
+
+    # Upload/body ceiling — matches the app's 15MB limit.
+    client_max_body_size 15m;
+
+    # API
+    location /api/ {
+        proxy_pass http://127.0.0.1:5000;
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 120s;
+    }
+
+    # Socket.IO (WebSocket upgrade)
+    location /socket.io/ {
+        proxy_pass http://127.0.0.1:5000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade    $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host       $host;
+        proxy_set_header X-Real-IP  $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 3600s;
+    }
+
+    # Locally-stored uploads (only when STORAGE_DRIVER=local). Harmless if unused.
+    location /uploads/ {
+        proxy_pass http://127.0.0.1:5000;
+        proxy_set_header Host $host;
+    }
+
+    # SPA history fallback — every non-file route serves index.html.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

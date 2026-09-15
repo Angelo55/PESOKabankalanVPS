@@ -1,0 +1,32 @@
+-- ============================================================================
+-- Migration: 001_drop_legacy_referral_tables
+--
+-- WHY THIS EXISTS
+-- ---------------
+-- TiDB and MariaDB both contain `referral_queue` and `referral_letters` tables
+-- generated from an early ERD (PESODB_vuerd.json). They are structurally wrong
+-- for the referral module:
+--
+--   1. referral_queue.application_id references `applications` -- the job
+--      seeker's PRIVATE tracker of external jobs (Indeed, LinkedIn, etc).
+--      A PESO referral letter can only be issued against `job_applications`:
+--      a real application to a job PUBLISHED on the PESO platform. PESO cannot
+--      endorse a candidate to a company it has no relationship with.
+--
+--   2. They have no reviewer, no remarks, no email status, and no retry state,
+--      so the workflow could be neither audited nor recovered after a failure.
+--
+-- Because CREATE TABLE IF NOT EXISTS silently skips tables that already exist,
+-- the correct schema in 002 CANNOT be created while these squat on the names.
+-- They must be dropped first.
+--
+-- SAFETY
+-- ------
+-- Verified empty on 2026-07-14:
+--   SELECT COUNT(*) FROM referral_queue;   -- 0
+--   SELECT COUNT(*) FROM referral_letters; -- 0
+-- No data is lost. Child table is dropped first to satisfy the foreign key.
+-- ============================================================================
+
+DROP TABLE IF EXISTS referral_letters;
+DROP TABLE IF EXISTS referral_queue;

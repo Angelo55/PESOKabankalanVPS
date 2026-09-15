@@ -1,0 +1,129 @@
+{
+  "version": 1,
+  "note": "Labeled resume<->job cases for AI compatibility calibration (audit step 1). All data here is SYNTHETIC — no real applicant PII. PESO should ADD real, anonymized cases so the eval reflects true local vacancies. IMPORTANT: each case's `mockResponse` is ILLUSTRATIVE SCAFFOLDING for `--mock` dry-runs ONLY (it lets the harness run with no AI calls and demonstrates a plausible CURRENT miss for that failure mode). It is NOT real model output — real baseline numbers require a LIVE run (aiClient keys) on staging/local: `node scripts/eval-scoring.js`.",
+  "bandThresholds": { "strong": 75, "good": 55, "moderate": 35 },
+  "suitableThreshold": 60,
+  "toleranceOverall": 12,
+  "cases": [
+    {
+      "id": "transferable-frontend",
+      "scenario": "transferable/synonymous skills",
+      "note": "A React developer applying for a 'Front-End Web Developer' role. The stacks are synonymous (React is front-end JS); a keyword-only scorer under-credits it because the posting says 'JavaScript/HTML/CSS' not 'React'. Expected: Strong.",
+      "expected": { "overall": 85, "band": "Strong Match", "suitable": true },
+      "resume": "Front-end engineer, 3 years. Built single-page apps in React, Redux, and TypeScript. Styled with Tailwind and CSS modules. Consumed REST APIs, wrote Jest unit tests, used Git and CI. Delivered responsive dashboards for a fintech startup.",
+      "job": {
+        "title": "Front-End Web Developer",
+        "company": "Kabankalan Digital Services",
+        "description": "Build and maintain responsive company websites and internal tools. Work with designers to implement UI.",
+        "skills": "JavaScript, HTML, CSS, responsive design, REST APIs, version control",
+        "qualifications": "Portfolio of web projects; teamwork",
+        "required_experience": "2+ years building websites or web apps",
+        "educational_requirements": "Any; skills-based"
+      },
+      "mockResponse": "{\"overall\": 52, \"skills\": \"Low\", \"education\": \"Medium\", \"experience\": \"Medium\", \"summary\": \"Resume mentions React, not the listed JavaScript/HTML/CSS.\"}"
+    },
+    {
+      "id": "keyword-stuffed-shallow",
+      "scenario": "false-positive risk (keyword stuffing)",
+      "note": "Resume repeats the exact posting keywords in a skills list but shows no real depth or experience using them. A keyword-overlap scorer over-credits it. Expected: Moderate at best.",
+      "expected": { "overall": 45, "band": "Moderate Match", "suitable": false },
+      "resume": "Skills: bookkeeping, QuickBooks, payroll, accounts payable, accounts receivable, financial reporting, tax, audit, reconciliation. Objective: seeking an accounting role. Experience: 4 months cashier at a convenience store.",
+      "job": {
+        "title": "Accounting Staff",
+        "company": "Negros Trading Corp",
+        "description": "Maintain books of accounts, process payroll, prepare monthly financial reports, handle AP/AR and reconciliations.",
+        "skills": "bookkeeping, QuickBooks, payroll, accounts payable, accounts receivable, financial reporting, reconciliation",
+        "qualifications": "BS Accountancy or related; 2 years relevant experience",
+        "required_experience": "2 years in a bookkeeping/accounting role",
+        "educational_requirements": "Bachelor's in Accountancy or Financial Management"
+      },
+      "mockResponse": "{\"overall\": 88, \"skills\": \"High\", \"education\": \"Low\", \"experience\": \"High\", \"summary\": \"All required skill keywords are present in the resume.\"}"
+    },
+    {
+      "id": "strong-true-match",
+      "scenario": "clear strong match",
+      "note": "Directly relevant, senior-enough, right education. Expected: Strong; sanity check the scorer does not under-rate a genuine fit.",
+      "expected": { "overall": 90, "band": "Strong Match", "suitable": true },
+      "resume": "Registered Nurse (PRC licensed), 5 years in a tertiary hospital ER and medical-surgical ward. IV therapy certified, BLS/ACLS. Supervised junior nurses, handled charting and patient assessment. BS Nursing, cum laude.",
+      "job": {
+        "title": "Staff Nurse",
+        "company": "Kabankalan City Hospital",
+        "description": "Provide direct patient care in the ward, administer medications, monitor and chart patient status.",
+        "skills": "patient care, medication administration, charting, IV therapy, BLS",
+        "qualifications": "Registered Nurse (PRC license); hospital experience",
+        "required_experience": "2+ years clinical nursing",
+        "educational_requirements": "BS Nursing; PRC RN license"
+      },
+      "mockResponse": "{\"overall\": 91, \"skills\": \"High\", \"education\": \"High\", \"experience\": \"High\", \"summary\": \"Licensed RN with directly relevant hospital experience.\"}"
+    },
+    {
+      "id": "clear-non-match",
+      "scenario": "clear non-match",
+      "note": "Unrelated field. Expected: Low; guards against false positives from generic soft-skill overlap.",
+      "expected": { "overall": 15, "band": "Low Match", "suitable": false },
+      "resume": "Heavy equipment operator, 6 years. Operated backhoes, bulldozers, and dump trucks on road projects. Basic equipment maintenance. Team player, hardworking, reliable.",
+      "job": {
+        "title": "Graphic Designer",
+        "company": "Creative Hub Bacolod",
+        "description": "Design marketing materials, social media graphics, and brand assets using Adobe Creative Suite.",
+        "skills": "Adobe Photoshop, Illustrator, layout, typography, branding",
+        "qualifications": "Design portfolio; 2 years design experience",
+        "required_experience": "2 years graphic design",
+        "educational_requirements": "Any; portfolio required"
+      },
+      "mockResponse": "{\"overall\": 34, \"skills\": \"Low\", \"education\": \"Low\", \"experience\": \"Medium\", \"summary\": \"Both roles value being a reliable team player.\"}"
+    },
+    {
+      "id": "career-progression",
+      "scenario": "career progression / experience level",
+      "note": "Applicant's trajectory (crew -> shift lead) makes the supervisor role a logical next step. A scorer that only checks the literal 'supervisor' title under-credits the readiness. Expected: Good/Strong.",
+      "expected": { "overall": 78, "band": "Strong Match", "suitable": true },
+      "resume": "Food service crew for 2 years, promoted to shift leader for the last 1 year: opened/closed the store, scheduled 8 crew, handled cash, trained new hires, resolved customer complaints. Consistent top-performer.",
+      "job": {
+        "title": "Restaurant Supervisor",
+        "company": "Sizzling Plate Kabankalan",
+        "description": "Supervise floor crew per shift, manage schedules and cash, ensure service standards and food safety.",
+        "skills": "team supervision, scheduling, cash handling, customer service, training",
+        "qualifications": "Prior supervisory or team-lead exposure",
+        "required_experience": "1-2 years in food service, some lead experience",
+        "educational_requirements": "Any"
+      },
+      "mockResponse": "{\"overall\": 58, \"skills\": \"Medium\", \"education\": \"Medium\", \"experience\": \"Medium\", \"summary\": \"Candidate was a shift leader, not titled supervisor.\"}"
+    },
+    {
+      "id": "certification-driven-sparse",
+      "scenario": "certification-driven, sparse resume text",
+      "note": "A TESDA-certified welder with a short resume. The certification is decisive evidence of skill but the thin wording makes a keyword scorer under-rate it. Expected: Strong.",
+      "expected": { "overall": 82, "band": "Strong Match", "suitable": true },
+      "resume": "TESDA NC II Shielded Metal Arc Welding (SMAW). 2 years welding fabrication at a small shop. Can read basic fabrication drawings.",
+      "job": {
+        "title": "Welder / Fabricator",
+        "company": "Steelworks Negros",
+        "description": "Perform SMAW welding on structural steel per drawings; grinding and finishing.",
+        "skills": "SMAW welding, blueprint reading, metal fabrication, grinding",
+        "qualifications": "TESDA NC II (SMAW) preferred",
+        "required_experience": "1+ year welding",
+        "educational_requirements": "Any; TESDA certification an advantage"
+      },
+      "extraContext": "- TESDA National Certificate II, Shielded Metal Arc Welding (SMAW): competency in fillet and groove welds, safety, blueprint interpretation.",
+      "mockResponse": "{\"overall\": 61, \"skills\": \"Medium\", \"education\": \"Low\", \"experience\": \"Medium\", \"summary\": \"Short resume with limited detail on welding processes.\"}"
+    },
+    {
+      "id": "education-equivalent-field",
+      "scenario": "education alignment (equivalent field, different name)",
+      "note": "Degree name differs from the posting but is an equivalent field. RECONSIDERED 2026-08 during calibration: an IT graduate with 2 years of relevant sysadmin experience for an IT Support Officer role is reasonably a STRONG match, not merely good — the model's 85 was more defensible than the original 72/Good guess. Relabeled to Strong. (Illustrates that not every model<->expectation gap is a scorer error; some are label errors.)",
+      "expected": { "overall": 80, "band": "Strong Match", "suitable": true },
+      "resume": "BS in Information Technology. 2 years as a junior systems administrator: managed Windows servers, user accounts, backups, and a small network. Basic scripting.",
+      "job": {
+        "title": "IT Support Officer",
+        "company": "PESO Kabankalan",
+        "description": "Support office IT: workstations, accounts, network, and backups.",
+        "skills": "systems administration, networking, user support, backups",
+        "qualifications": "IT-related degree; support experience",
+        "required_experience": "1-2 years IT support/admin",
+        "educational_requirements": "BS Computer Science or related IT field"
+      },
+      "mockResponse": "{\"overall\": 74, \"skills\": \"High\", \"education\": \"Medium\", \"experience\": \"High\", \"summary\": \"Relevant IT admin experience; degree is IT, close to CS.\"}"
+    }
+  ]
+}

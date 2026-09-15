@@ -1,0 +1,428 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── DESIGN TOKENS (centralized theme system) ──────────────────────────────
+   Single source of truth for colour across BOTH themes. Components style against
+   SEMANTIC names (surface / raised / line / content / muted / accent) — mapped to
+   these variables in tailwind.config.js as `bg-surface`, `text-content`,
+   `border-line`, `text-accent-text`, etc. Because the variable flips under `.dark`,
+   a component written in tokens needs NO `dark:` variant and the whole palette can
+   be retuned here in ONE place. (Legacy pages still using raw `dark:bg-gray-*`
+   utilities are being migrated onto these tokens in phases.)
+
+   Dark palette principles (2026-08-03 redesign): layered charcoal/slate surfaces
+   instead of pure black, off-white text instead of harsh #fff, softened borders,
+   accent unified on the redesigned green (#4F7942 fill; #A8D5BA mint for accent
+   text/icons on dark). Contrast checked to WCAG AA. */
+/* Values are SPACE-SEPARATED RGB CHANNELS (not hex) so Tailwind's opacity modifier
+   works on the tokens — e.g. `bg-raised/70`, `border-line/60`. tailwind.config maps
+   each to `rgb(var(--x) / <alpha-value>)`; raw CSS uses `rgb(var(--x))`. */
+:root {
+	color-scheme: light;
+
+	--surface-base: 246 247 249;   /* app background           */
+	--surface: 255 255 255;        /* cards, panels            */
+	--surface-raised: 255 255 255; /* modals, header, popovers */
+	--surface-sunken: 238 241 244; /* wells, inset rows        */
+	--line: 229 231 235;           /* subtle border            */
+	--line-strong: 209 213 219;    /* stronger divider         */
+
+	--content: 17 24 39;           /* primary text             */
+	--content-muted: 91 100 114;   /* secondary text           */
+	--content-subtle: 156 163 175; /* tertiary / placeholder   */
+
+	--accent: 79 121 66;           /* #4F7942 solid fills      */
+	--accent-text: 79 121 66;      /* accent text/icons/links  */
+	--accent-hover: 62 98 52;      /* #3E6234                  */
+	--accent-contrast: 255 255 255;/* text on an accent fill   */
+	--accent-soft: 234 241 230;    /* accent-tinted surface    */
+
+	--focus-ring: 79 121 66;
+
+	--danger: 220 38 38;
+	--warning: 217 119 6;
+	--success: 79 121 66;
+	--info: 37 99 235;
+
+	--shadow-card: 0 2px 10px rgba(15, 23, 42, 0.05);
+	--shadow-raised: 0 10px 28px rgba(15, 23, 42, 0.10);
+}
+
+.dark {
+	color-scheme: dark;
+
+	--surface-base: 14 17 22;      /* #0E1116 deep charcoal, NOT #000 */
+	--surface: 23 27 34;           /* #171B22 cards above the base    */
+	--surface-raised: 30 35 44;    /* #1E232C modals/header higher    */
+	--surface-sunken: 10 13 17;    /* #0A0D11                         */
+	--line: 39 45 56;              /* #272D38 soft, low-contrast      */
+	--line-strong: 53 60 73;       /* #353C49                         */
+
+	--content: 230 232 236;        /* #E6E8EC off-white, not harsh #fff */
+	--content-muted: 154 162 177;  /* #9AA2B1                         */
+	--content-subtle: 107 114 128; /* #6B7280                         */
+
+	--accent: 79 121 66;           /* brand fill stays constant       */
+	--accent-text: 168 213 186;    /* #A8D5BA mint reads on dark (§2.1)*/
+	--accent-hover: 92 140 77;     /* #5C8C4D                         */
+	--accent-contrast: 255 255 255;
+	--accent-soft: 28 43 33;       /* #1C2B21                         */
+
+	--focus-ring: 168 213 186;
+
+	--danger: 248 113 113;
+	--warning: 251 191 36;
+	--success: 134 197 111;
+	--info: 96 165 250;
+
+	--shadow-card: 0 2px 12px rgba(0, 0, 0, 0.45);
+	--shadow-raised: 0 12px 32px rgba(0, 0, 0, 0.55);
+}
+
+/* App background + default ink now flow from the tokens, so the base surface
+   softens app-wide the moment the theme flips — even on pages not yet migrated. */
+body {
+	background-color: rgb(var(--surface-base));
+	color: rgb(var(--content));
+}
+
+/* ─── Theme-switch transition ────────────────────────────────────────────────
+   The premium part: colours INTERPOLATE for one beat during a theme flip instead
+   of hard-swapping. ThemeContext adds `.theme-transition` to <html> just around the
+   flip, then removes it, so ONLY the switch animates — normal hover/interaction
+   transitions are untouched. Transform/opacity are deliberately excluded (only
+   paint properties cross-fade). The global reduced-motion catch-all below zeroes
+   this automatically. */
+html.theme-transition,
+html.theme-transition *,
+html.theme-transition *::before,
+html.theme-transition *::after {
+	transition: background-color 260ms var(--ease-in-out),
+	            border-color 260ms var(--ease-in-out),
+	            color 260ms var(--ease-in-out),
+	            fill 260ms var(--ease-in-out),
+	            stroke 260ms var(--ease-in-out),
+	            box-shadow 260ms var(--ease-in-out) !important;
+}
+
+/* View Transitions circular reveal (progressive enhancement). Where supported and
+   motion is allowed, the new theme wipes in from the toggle. Falls back silently to
+   the cross-fade above. */
+::view-transition-old(root),
+::view-transition-new(root) {
+	animation: none;
+	mix-blend-mode: normal;
+}
+::view-transition-old(root) { z-index: 1; }
+::view-transition-new(root) { z-index: 2; }
+
+/* Skeleton shimmer — used by Skeleton.jsx placeholders. Pure CSS, no library. */
+@keyframes skeleton-shimmer {
+	0%   { opacity: 1; }
+	50%  { opacity: 0.55; }
+	100% { opacity: 1; }
+}
+
+.animate-skeleton-shimmer {
+	animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+/* ─── MOTION SYSTEM ─────────────────────────────────────────────────────────
+   One place the whole app agrees on how long things move and how they ease, so
+   interactions feel like one product instead of many. Durations follow a
+   perceptual scale; easings follow the "enter fast-out, exit fast-in" rule.
+
+     --dur-hover   100ms  hover / button state changes
+     --dur-micro   220ms  micro-interactions: bookmark, icons, toggles
+     --dur-ui      340ms  toasts, modals, drawers, page elements in/out
+     --dur-emphasis 600ms only for emphasis / onboarding moments
+
+     --ease-out    entrances (decelerate into place)
+     --ease-in     exits (accelerate away)
+     --ease-in-out state transitions
+     --ease-bounce the bookmark pop's overshoot
+   Utilities and components reference these tokens rather than hard-coding ms. */
+:root {
+	--dur-hover: 100ms;
+	--dur-micro: 220ms;
+	--dur-ui: 340ms;
+	--dur-emphasis: 600ms;
+	--ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+	--ease-in: cubic-bezier(0.4, 0, 1, 1);
+	--ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+	--ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Bookmark / save micro-interaction: expand, then a single settling bounce, as
+   the icon crosses into its saved state. Transform-only (GPU-composited), so it
+   never triggers layout — safe to fire on every save. ~260ms sits in the
+   micro-interaction band. */
+@keyframes bookmark-pop {
+	0%   { transform: scale(1); }
+	35%  { transform: scale(1.32); }   /* expand */
+	60%  { transform: scale(0.86); }   /* bounce in */
+	100% { transform: scale(1); }      /* settle */
+}
+.animate-bookmark-pop {
+	animation: bookmark-pop var(--dur-micro) var(--ease-bounce);
+}
+
+/* Toast auto-dismiss progress bar. scaleX from full to empty over the toast's
+   own duration; the component sets animation-duration and toggles play-state to
+   pause on hover. Transform-based, so it stays on the compositor. */
+@keyframes toast-progress {
+	from { transform: scaleX(1); }
+	to   { transform: scaleX(0); }
+}
+.toast-progress {
+	transform-origin: left;
+	animation-name: toast-progress;
+	animation-timing-function: linear;
+	animation-fill-mode: forwards;
+}
+
+/* ─── Empty-state motion (design system) ────────────────────────────────────
+   Used by common/EmptyState.jsx + GettingStartedGuide.jsx. `es-float` gives the
+   icon tile a gentle idle bob so a "nothing here yet" screen feels alive rather
+   than dead; `es-pop` is a one-shot celebratory scale-in for SUCCESS empties
+   (all caught up). Both are transform/opacity only (compositor-friendly) and are
+   neutralised in the reduced-motion block below. */
+@keyframes es-float {
+	0%, 100% { transform: translateY(0); }
+	50%      { transform: translateY(-6px); }
+}
+.es-float { animation: es-float 3.6s var(--ease-soft, ease-in-out) infinite; }
+
+@keyframes es-pop {
+	0%   { transform: scale(0.82); opacity: 0; }
+	60%  { transform: scale(1.05); opacity: 1; }
+	100% { transform: scale(1); opacity: 1; }
+}
+.es-pop { animation: es-pop 0.5s var(--ease-bounce, ease-out) both; }
+
+/* Shared chatbot message-bubble entrance — used by BOTH the authenticated PESO Assistant
+   and the public Landing assistant (see components/chat/chatMotion.js). The app has no
+   tailwindcss-animate plugin, so the `animate-in …` classes are no-ops; this is the real one. */
+@keyframes chat-msg-in {
+	from { opacity: 0; transform: translateY(6px); }
+	to   { opacity: 1; transform: none; }
+}
+.chat-msg-in { animation: chat-msg-in 0.28s ease-out both; }
+@media (prefers-reduced-motion: reduce) { .chat-msg-in { animation: none; } }
+
+/* ─── Analytics tooltip reveal (recharts) ───────────────────────────────────
+   Every dashboard chart pairs this with `isAnimationActive={false}` on the
+   recharts <Tooltip>. That prop turns OFF recharts' default position animation —
+   the one that slid the tooltip in from the chart's left edge and travelled it
+   toward the cursor on first hover, which felt mechanical. With it off, recharts
+   drops the tooltip straight at its own overflow-safe calculated position, and
+   THIS keyframe supplies a subtle, anchored fade-in instead (opacity + a hair of
+   scale, NO translate, so it grows in place rather than flying across the chart).
+
+   The re-trigger is controlled by React `key`: the tooltip's custom `content`
+   component keys its root on the active data point (the category label, or the
+   slice/series name for pies). Same point on continued hover → same key → the
+   node is reused and the animation does NOT replay (steady, readable). Move to a
+   genuinely different point → new key → remount → one clean fade at the new
+   position. Presentation only — no chart data, aggregation, or positioning logic
+   is touched. */
+@keyframes chart-tooltip-in {
+	from { opacity: 0; transform: translateY(-6px); }
+	to   { opacity: 1; transform: translateY(0); }
+}
+/* 200ms + ease-out + opacity + a small vertical settle: the SAME motion language
+   as the top-header Avatar dropdown and the "+ Create New" menu (DROPDOWN_PANEL in
+   layout/dropdownMotion.js = `origin-top transition-all duration-200 ease-out`), so
+   the tooltip reveal feels like the rest of the app. It still lands anchored at the
+   hovered point — the left-edge travel stays off via isAnimationActive={false}. */
+.chart-tooltip-in {
+	animation: chart-tooltip-in 0.2s ease-out both;
+	will-change: transform, opacity;
+}
+@media (prefers-reduced-motion: reduce) { .chart-tooltip-in { animation: none; } }
+
+/* ─── Shared scroll-reveal (components/common/Reveal.jsx) ────────────────────
+   ONE reveal contract for every posted-job card across the three job surfaces —
+   the Landing discovery grid, the Public Job Board, and the PESO Admin Job
+   Publication Manager — so easing, distance, and duration never drift between
+   them. Colour-agnostic (opacity + transform only), so it works identically
+   under the app design tokens AND the Landing's bespoke hex palette.
+
+   A card mounts at opacity:0 / translateY(24px); Reveal registers it with a
+   SINGLE shared IntersectionObserver and adds `reveal-in` the first time it
+   scrolls into view, then unobserves it (one-shot — no re-animation, no ongoing
+   work for cards already on screen). Reduced-motion users get the final state
+   immediately (and Reveal skips the observer entirely). This is distinct from the
+   Landing's own page-choreography `.reveal` (defined in that component's inline
+   <style>), which stays as-is. */
+.reveal-item {
+	opacity: 0;
+	transform: translateY(24px);
+	transition: opacity 0.6s var(--ease-soft, cubic-bezier(0.22, 1, 0.36, 1)),
+	            transform 0.6s var(--ease-soft, cubic-bezier(0.22, 1, 0.36, 1));
+	will-change: opacity, transform;
+}
+.reveal-item.reveal-in { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+	.reveal-item { opacity: 1; transform: none; transition: none; }
+}
+
+/* ─── Hover-revealed card controls ──────────────────────────────────────────
+   Card actions (pin, colour label, edit, delete) stay out of the way until the
+   card is hovered, keeping the grid clean. But a touch device has NO hover
+   state, so `opacity-0 + group-hover` left those controls permanently
+   invisible on phones and tablets — the features were unreachable.
+
+   Keying off `(hover: hover) and (pointer: fine)` rather than a width
+   breakpoint applies the reveal exactly where hovering is actually possible:
+   a touch tablet at 1024px gets persistent icons, a mouse-driven desktop keeps
+   the clean reveal. Keyboard users are covered by :focus-within / :focus-visible,
+   so the controls are reachable by tab as well as by pointer. */
+.reveal-on-hover {
+	opacity: 1;
+}
+
+@media (hover: hover) and (pointer: fine) {
+	.reveal-on-hover {
+		opacity: 0;
+	}
+
+	.group:hover .reveal-on-hover,
+	.group:focus-within .reveal-on-hover,
+	.reveal-on-hover:focus-visible {
+		opacity: 1;
+	}
+}
+
+/* Companion for controls sitting ON a coloured card. There they are DIMMED
+   rather than hidden (a tinted surface already gives them contrast), but the
+   hover-less problem is identical: a touch device would strand them at the dim
+   value with no way to bring them up. Same capability query, same outcome —
+   full strength on touch, subtle-until-hover on a mouse. */
+.dim-until-hover {
+	opacity: 1;
+}
+
+@media (hover: hover) and (pointer: fine) {
+	.dim-until-hover {
+		opacity: 0.45;
+	}
+
+	.group:hover .dim-until-hover,
+	.group:focus-within .dim-until-hover,
+	.dim-until-hover:hover,
+	.dim-until-hover:focus-visible {
+		opacity: 1;
+	}
+}
+
+/* ─── Sidebar-aware page width ──────────────────────────────────────────────
+   Page shells are capped at `max-w-7xl` (Tailwind's 1280px) and centred. On a
+   wide monitor that stranded ~180px of dead margin either side of the content
+   — narrow and unbalanced — and the gap got worse once the sidebar collapsed.
+
+   AppLayout/AdminLayout put `.sidebar-collapsed` on <main> whenever the sidebar
+   is collapsed (App.jsx + hooks/useSidebarCollapsed), so the shells inside can
+   size to the space actually available. Done here, once, rather than in each of
+   the ~19 pages that share the cap — every page benefits automatically and none
+   can drift out of sync.
+
+   The two caps are deliberately 204px apart, matching the sidebar's own
+   expanded→collapsed delta (288px → 80px). That keeps the side margins visually
+   IDENTICAL in both states: the content edge stays put and the shell simply
+   absorbs exactly the width the sidebar gave back, so toggling never shifts the
+   page's sense of balance. Measured on a 1920px viewport: ~48px gutters
+   expanded, ~50px collapsed (plus each shell's own p-8 padding inside).
+
+   Guarded to >=1280px: below that the shell is already fluid and full-width,
+   so a wider cap is a no-op. The transition matches the sidebar's own 300ms
+   animation so the two move together. */
+main .max-w-7xl {
+	transition: max-width 300ms ease;
+}
+
+@media (min-width: 1280px) {
+	main .max-w-7xl {
+		max-width: 1536px;
+	}
+
+	main.sidebar-collapsed .max-w-7xl {
+		max-width: 1740px;
+	}
+}
+
+/* Respect users who asked for less motion — hold a steady mid state instead. */
+@media (prefers-reduced-motion: reduce) {
+	main .max-w-7xl {
+		transition: none;
+	}
+
+	.animate-skeleton-shimmer {
+		animation: none;
+		opacity: 0.7;
+	}
+
+	/* The bookmark pop is pure delight — drop it entirely. */
+	.animate-bookmark-pop {
+		animation: none;
+	}
+
+	/* Empty-state idle bob + success pop are decorative — hold them static. */
+	.es-float,
+	.es-pop {
+		animation: none;
+	}
+
+	/* The toast progress bar carries real information (when it will dismiss), so
+	   it is not removed — but the sliding motion is replaced with an instant jump
+	   to empty just before dismissal via a stepped timing function, so there is no
+	   continuous movement. */
+	.toast-progress {
+		animation-timing-function: steps(1, end) !important;
+	}
+
+	/* ─── App-wide motion neutralisation (WCAG 2.3.3) ────────────────────────
+	   The rules above tune specific effects; this catch-all covers everything
+	   ELSE — Tailwind's animate-* entrances (animate-in / fade-scale-in / spins),
+	   hover lifts, and every transition — for a user who asked for less motion.
+	   Durations collapse to ~0 rather than being removed outright, so state still
+	   changes instantly and nothing that relies on an animation/transition
+	   completing breaks. `.toast-progress` keeps its stepped rule above (it wins
+	   on the more specific selector). */
+	*, *::before, *::after {
+		animation-duration: 0.001ms !important;
+		animation-delay: 0ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.001ms !important;
+		transition-delay: 0ms !important;
+		scroll-behavior: auto !important;
+	}
+}
+
+/* ─── Keyboard focus visibility (WCAG 2.4.7) ────────────────────────────────
+   Many controls use Tailwind's `focus:outline-none`, which removes the focus
+   ring for EVERYONE — fine for a mouse, a failure for keyboard navigation. This
+   restores a clear, brand-coloured ring for keyboard users only (`:focus-visible`
+   never fires on a plain mouse click), scoped to interactive elements. `!important`
+   is deliberate: it has to beat `focus:outline-none`, and a visible focus indicator
+   is non-negotiable. Components that already define their own `focus-visible:ring`
+   keep it; the extra outline is harmless redundancy, never an omission. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible,
+[tabindex]:not([tabindex="-1"]):focus-visible,
+[role="button"]:focus-visible,
+[role="switch"]:focus-visible,
+[role="tab"]:focus-visible,
+[role="menuitem"]:focus-visible {
+	/* Token-driven so it flips with the theme via `.dark` (was a broken mix of
+	   prefers-color-scheme + a data-theme attribute nothing ever set). Unified on
+	   the accent: #4F7942 light, #A8D5BA dark. */
+	outline: 2px solid rgb(var(--focus-ring)) !important;
+	outline-offset: 2px !important;
+	border-radius: 4px;
+}
