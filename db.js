@@ -202,8 +202,16 @@ if (!IS_PG && process.env.DB_INIT_ON_BOOT === 'true') {
 	pool.query('SELECT VERSION() AS version')
 		.then(([rows]) => {
 			const version = rows && rows[0] ? rows[0].version : 'unknown';
-			const target = process.env.DB_HOST || process.env.DATABASE_URL || '?';
-			console.log(`[DB] Connected (${IS_PG ? 'postgres' : 'mysql'}) to ${target}/${process.env.DB_NAME || ''}`);
+			// Report the ACTUAL target for the active driver. On the pg path the
+			// connection comes from DATABASE_URL (password masked before logging);
+			// DB_HOST is the leftover MySQL/TiDB host and would MISLABEL the log
+			// (it once printed "…tidbcloud.com" while really talking to Supabase).
+			const target = IS_PG
+				? (process.env.DATABASE_URL
+					? process.env.DATABASE_URL.replace(/:[^:@/]*@/, ':****@')
+					: `${process.env.DB_HOST || '?'}:${process.env.DB_PORT || ''}/${process.env.DB_NAME || ''}`)
+				: `${process.env.DB_HOST || process.env.DATABASE_URL || '?'}/${process.env.DB_NAME || ''}`;
+			console.log(`[DB] Connected (${IS_PG ? 'postgres' : 'mysql'}) to ${target}`);
 			console.log(`[DB] Server: ${version}`);
 			if (!IS_PG) console.log('[DB] initDB skipped — migrations own the schema; set DB_INIT_ON_BOOT=true to run it.');
 		})
