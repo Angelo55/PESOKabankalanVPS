@@ -127,25 +127,46 @@ feature (§11), but nothing in the product should be designed around PWD status.
   and the v2 `PDFParse` class (calling `pdf-parse` directly broke twice on the
   version bump). Default port **5000**. Local dev runs under nodemon
   (`npm run dev`), so backend edits hot-reload.
-- **Database** — **TiDB**, MySQL wire-compatible, accessed through a `mysql2`
-  pool in `db.js`. TiDB is *not* MySQL: no `SKIP LOCKED` (conditional atomic
-  `UPDATE`s instead, §7.5), and enum columns only accept **appending** values at
-  the end of the list (§13). **Production runs against a live TiDB instance** —
-  every schema or data change is production-affecting.
+- **Database** — **dual-driver, selected at boot by `DB_CLIENT`** (`db.js`):
+  - `mysql` (**default**) → **TiDB** (MySQL wire-compatible) via a `mysql2` pool —
+    the original production line. TiDB is *not* MySQL: no `SKIP LOCKED` (conditional
+    atomic `UPDATE`s instead, §7.5), and enum columns only accept **appending**
+    values at the end of the list (§13).
+  - `postgres` → **PostgreSQL (Supabase)** via the mysql2-compatible pg adapter
+    `dbPgAdapter.js` (`?`→`$n`, `IN (?)` expansion, `ON DUPLICATE KEY`→`ON CONFLICT`,
+    auto `RETURNING id`, MySQL→Postgres dialect translation). On this path the schema
+    is owned by `postgres/schema.sql` (58 tables), NOT the numbered migrations, and
+    `initDB()` never runs. **THIS VPS repo deploys on the postgres path** — `.env`
+    sets `DB_CLIENT=postgres` + the Supabase **session-pooler** `DATABASE_URL`
+    (`postgres.<ref>@aws-0-<region>.pooler.supabase.com:5432`, `DB_SSL=true`); see
+    `postgres/README.md` + `DEPLOYMENT.md`.
+  Whichever driver is active, it points at a **live** instance — every schema or
+  data change is production-affecting. (The mysql2-coupled test suite stays green on
+  the default mysql path; adapter unit tests cover the pg path.)
 - **AI** — **OpenRouter** gateway calling `deepseek/deepseek-chat`; some routes
   still call the **DeepSeek API directly**. **DeepL** for translation. All AI is
   **gracefully degradable**.
-- **Automation** — **n8n** in Docker (`--restart unless-stopped`, never `--rm`),
-  a **downstream consumer only**. Referrals that complete without reaching it are
-  surfaced as an advisory, never as an error (§7.8).
-- **Hosting** — split deployment (§19): **frontend on Vercel**
-  (`peso-kabankalan.vercel.app`), **backend on Render**
-  (`peso-kabankalan-backend.onrender.com`), CROSS-ORIGIN. Render's filesystem is
-  **ephemeral** AND Render **blocks outbound SMTP** (email goes over an HTTP API,
-  §19.3) and **hibernates** the free instance when idle (cold-start on the next
-  request — the pipeline's slow poll backstops it, §18.9). Because the two are
-  different origins, CORS + the socket URL + OAuth URLs are all **env-driven**
-  (§19.2), never hardcoded localhost.
+- **Automation** — **Make.com** is the sole downstream webhook consumer (n8n is
+  FULLY RETIRED, §70; the dispatch reads `AUTOMATION_WEBHOOK_URL`, and the persisted
+  `dispatch_n8n` step key + `N8N_DISPATCHED`/`N8N_DISPATCH_SKIPPED` identifiers are
+  kept ON PURPOSE — renaming them orphans in-flight rows/history). A **downstream
+  consumer only**: referrals that complete without reaching it are surfaced as an
+  advisory, never an error (§7.8, invariant 0.10).
+- **Hosting** — TWO deployment lines share this codebase:
+  - **THIS repo = single VPS + Supabase** (`DEPLOYMENT.md`): Nginx serves the built
+    SPA and reverse-proxies `/api` + `/socket.io` to the Node API on the **SAME
+    origin** (no CORS needed in that topology); **PM2** runs two processes —
+    `peso-api` (`WORKER_MODE=web`, API only) + `peso-worker` (`worker.js`, the six
+    background workers) per `ecosystem.config.js`; domain `pesokabankalan.tech`. The
+    VPS has a **persistent disk and outbound SMTP**, so the Render constraints below
+    do not bite here (`STORAGE_DRIVER=local` is viable; SMTP works directly).
+  - **Original line = split Vercel + Render + TiDB** (§19), CROSS-ORIGIN: frontend
+    on Vercel (`peso-kabankalan.vercel.app`), backend on Render
+    (`peso-kabankalan-backend.onrender.com`). Render's filesystem is **ephemeral**,
+    it **blocks outbound SMTP** (email via an HTTP API, §19.3), and **hibernates**
+    the free instance when idle (cold-start — the pipeline's slow poll backstops it,
+    §18.9). There, CORS + the socket URL + OAuth URLs are all **env-driven** (§19.2),
+    never hardcoded localhost.
 - **Auth providers** — email/password + **Google OAuth only**. GitHub OAuth was
   **fully removed** (2026-07-19): routes, env vars, UI, and the dead
   `Login.jsx` / `auth/AuthModal.jsx` components are gone. Do not reintroduce it.
