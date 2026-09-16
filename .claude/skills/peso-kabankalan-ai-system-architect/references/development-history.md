@@ -3350,3 +3350,30 @@ Fixed the authed chat/notification socket erroring with `WebSocket connection to
 
 All chat/notification business logic (listeners, triggers, badge) is unchanged. Backend socket server + CORS were already correct (dev + `CORS_ORIGINS`/`FRONTEND_URL` env origins, both transports). Verified: `vite build` clean; app boots with zero console errors and NO socket attempt while unauthenticated; authed socket = owner-verified on their session. File: `job-tracker-frontend/src/context/ChatContext.jsx`.
 
+## 74. VPS + Supabase production cutover — deploy, TiDB→PG data migration, $5 fix, object storage, domain email, SMS (2026-09-16)
+
+This repo (`github.com/Angelo55/PESOKabankalanVPS`, checkout `C:\PESOKabankalanVPS\job-tracker-backend`) went from "the app connects to Supabase" to **live production** at https://pesokabankalan.tech carrying the real data. SEPARATE line from the original Vercel+Render+TiDB system.
+
+### 74.1 Deploy (AWS EC2 + Nginx + PM2 + Supabase)
+- EC2 `t3.small`, Ubuntu 22.04, `ap-southeast-1` (co-located with Supabase), Elastic IP `56.10.113.135`. Nginx (Let's Encrypt HTTPS + HTTP→HTTPS redirect, `deploy/nginx.conf.example`) reverse-proxies `/api`+`/socket.io` to `127.0.0.1:5000` (same-origin). PM2 runs a SINGLE `peso-app` (server.js + workers in-process sharing `io` — §25; `ecosystem.config.js` collapsed from the peso-api/peso-worker split, which WITHOUT Redis made worker→client real-time go dark). Runbook: `deploy/vps-runbook.md`. Google OAuth redirect URI added for the domain.
+- DB: `DB_CLIENT=postgres` + Supabase **session-pooler** `DATABASE_URL` (the direct `db.<ref>` host is IPv6-only on the free tier → use the pooler). `db.js` boot log now reports the real masked DATABASE_URL target on the pg path (was printing the stale TiDB `DB_HOST`).
+
+### 74.2 Full TiDB→Supabase DATA migration (full-replace)
+Schema was already ported (`postgres/schema.sql`, 58 tables) → DATA-only. `scripts/etl-tidb-to-supabase.js` (`--dry-run`/`--execute`): introspects the target for tables/column-types/FK edges, topo-orders the load, coerces MySQL→PG (boolean 0/1→t/f, zero-dates→NULL, json objects→text), loads SOURCE∩TARGET columns (warns on source-only), truncates under `session_replication_role='replica'`, resets identity sequences to MAX(id), and **neutralizes migrated outbox rows** (`referral_jobs`/`email_outbox`/`sms_outbox`/`proactive_match_jobs`/`job_alert_jobs`/`application_scoring_jobs` → `status='migrated'`) so live workers never re-send the original system's referrals. Source = read-only `SRC_DB_*`; target = `DATABASE_URL`. Result: ~11,976 rows, all counts matched, FKs clean, sequences correct, 52 signed letters intact (base64 in `referral_letter_files`, linked by `queue_id`), Super Admin (`id=1`, google-linked) carried over. Full-replace WIPED the prior test data (intended). SAFETY: the destructive truncate+load is owner-run; stop `peso-app` first so workers don't act on migrating outbox rows.
+
+### 74.3 Worker `$5` bug (Postgres type inference) — FIXED (`ea21930`)
+`could not determine data type of parameter $5` dead-lettered ProactiveWorker + JobMatchWorker. Cause: the shared reverse-scoring funnel ordered by `u.location LIKE CONCAT('%', ?, '%')` — a bare param to Postgres's variadic-`any` CONCAT is untypeable (MySQL infers loosely). Fix: `LIKE ?` with a `%…%` value in `proactiveReferralRepository` + `jobAlertsRepository` (cross-dialect). Verified live on Supabase. See §13 gotchas.
+
+### 74.4 Phase 2 object storage (Supabase Storage)
+`services/storageService.js` gained a `supabase` driver (S3-compatible, shares the S3 path with `r2`) + private objects (`savePrivate`/`getPrivate`/`removePrivate`). Buckets via `scripts/provision-supabase-storage.js` (`avatars` public, `resumes` private). Résumé snapshots → private bucket via `application_resumes.file_key` (migration 054; `file_data` kept as base64 fallback), streamed back ONLY through the owner-scoped ATS route; avatars (raster) → public URL, SVG picks stay inline. Gated on a non-`local` driver (no-op until prod `STORAGE_DRIVER=supabase` + Supabase S3 keys). Frontend unchanged (`resolveAvatarSrc` passes URLs through). Owner decision: existing migrated base64 stays base64; only NEW uploads offload.
+
+### 74.5 Email (Brevo domain sender) + SMS (TextBee)
+- **Email**: prod sets `BREVO_API_KEY` + `BREVO_FROM_EMAIL=mail@pesokabankalan.tech`. Domain authenticated in Brevo via name.com DNS (brevo-code TXT + `brevo1/brevo2._domainkey` DKIM CNAMEs + DMARC; no SPF yet — DKIM+DMARC suffices). Brevo LEADS the chain; Gmail SMTP + `EMAIL_FALLBACK_*` are backups. Boot log `[Mail] Provider 'brevo-http' verified.`, test delivered from the domain. name.com gotcha: the Host field takes the SUBDOMAIN ONLY (auto-appends the domain).
+- **SMS**: `SMS_PROVIDER=textbee` + `TEXTBEE_API_KEY`/`TEXTBEE_DEVICE_ID`, `sms_notifications_enabled`=true. Referral events only, to a verified+opted-in phone; in-app row always writes (0.11). Semaphore (paid PH) is the later option.
+
+### 74.6 Cleanups
+- `nullify-dead-local-images.js` made dialect-aware (`DATABASE()`→driver branch) + run — nulled 2 dead `/uploads/job-featured/*` refs the migration carried over (files weren't migrated; cards fall back to the branded placeholder).
+- `verification_id_types` deduped 9469→13 (13 gov ID types × ~728 re-seed dups from the old boot-time `INSERT IGNORE` without a unique key) + `UNIQUE(name)` added (live + `postgres/schema.sql`).
+
+**Deferred (roadmap `docs/post-launch-roadmap.md`):** worker-split + Redis for real-time; Semaphore SMS funding; a persistent staging env (blocked by Supabase's 2-project free limit — use local Docker Postgres or the migration dry-run); offloading existing base64 PII to storage.
+
