@@ -49,12 +49,16 @@ codebase, so changes stay consistent with the architecture already in production
 5. Before shipping, walk the checklist in §16 — and, for UI work, the additional
    checklist in the addendum's §12.
 
-6. Two in-repo documents complement this one and are kept with the code:
+6. In-repo documents complement this one and are kept with the code:
    - `docs/system-guide.md` — the demonstration/defence reference. Same
      subsystems, written as what/how/when/why prose for explaining the system
      out loud, plus a quick-answers section.
    - `docs/referral-management-enhancement.md` — the referral review, its
      findings and the remaining roadmap.
+   - **VPS + Supabase operations (this deployment line):** `DEPLOYMENT.md` +
+     `deploy/vps-runbook.md` (copy-paste go-live), `docs/post-launch-roadmap.md`
+     (what's done / deferred), `docs/observability-and-logs.md` (where every log
+     lives + a symptom→log cheat sheet), `postgres/README.md` (the pg port).
    Most modules also carry a file-header comment stating what they do, when they
    run, and which past incident shaped them.
 

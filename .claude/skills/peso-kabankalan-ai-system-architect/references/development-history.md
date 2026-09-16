@@ -3375,5 +3375,16 @@ Schema was already ported (`postgres/schema.sql`, 58 tables) → DATA-only. `scr
 - `nullify-dead-local-images.js` made dialect-aware (`DATABASE()`→driver branch) + run — nulled 2 dead `/uploads/job-featured/*` refs the migration carried over (files weren't migrated; cards fall back to the branded placeholder).
 - `verification_id_types` deduped 9469→13 (13 gov ID types × ~728 re-seed dups from the old boot-time `INSERT IGNORE` without a unique key) + `UNIQUE(name)` added (live + `postgres/schema.sql`).
 
+### 74.7 Operations & logging
+- **Logs live on the box** (no Render/Vercel dashboard): backend = `pm2 logs peso-app`
+  (files `~/.pm2/logs/peso-app-*.log`), web = `/var/log/nginx/{access,error}.log`, OS =
+  `journalctl`. Web dashboards remain for the DB (**Supabase → Logs**) and email
+  (**Brevo → Transactional → Logs**). In-app: `/admin → Platform Health / Audit / SMS /
+  Email`. A Render-style web UI is available via `pm2 plus` (free). Full map + a
+  symptom→log cheat sheet: **`docs/observability-and-logs.md`**.
+- **PM2 log rotation ENABLED** (2026-09-16): `pm2 install pm2-logrotate` with
+  `max_size=10M`, `retain=14` — so PM2 logs can't fill the 20 GB disk (Nginx already
+  rotates via Ubuntu logrotate).
+
 **Deferred (roadmap `docs/post-launch-roadmap.md`):** worker-split + Redis for real-time; Semaphore SMS funding; a persistent staging env (blocked by Supabase's 2-project free limit — use local Docker Postgres or the migration dry-run); offloading existing base64 PII to storage.
 
