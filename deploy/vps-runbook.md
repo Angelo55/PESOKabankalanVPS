@@ -141,6 +141,10 @@ curl -s https://pesokabankalan.tech/api/health          # {"status":"success",..
 - Google login + one authed action round-trips.
 
 ## 11. Ops notes (read these)
+- **Logs & observability:** where every log lives (PM2 backend, Nginx, journalctl,
+  Supabase DB dashboard, Brevo email dashboard, in-app Health) + a symptom→log cheat
+  sheet + PM2-logrotate setup → **`docs/observability-and-logs.md`**. First stop for
+  almost anything: `pm2 logs peso-app`.
 - **Supabase free tier PAUSES on idle** → the first request after idle can fail
   (the `econnrefused` we hit during setup). The app degrades gracefully (no crash),
   but users see errors until it wakes. Mitigate with a keep-alive cron —
