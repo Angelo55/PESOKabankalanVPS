@@ -37,8 +37,12 @@ async function sweep(table, column, label) {
 }
 
 async function main() {
-    const [[db]] = await pool.query('SELECT DATABASE() AS db');
-    console.log(`[nullify-dead-local-images] db=${db.db} host=${process.env.DB_HOST || '(default)'}${DRY ? '  (DRY RUN — no writes)' : ''}`);
+    let dbName = process.env.DB_NAME || '(default)';
+    try {
+        const [[db]] = await pool.query(pool.isPostgres ? 'SELECT current_database() AS db' : 'SELECT DATABASE() AS db');
+        if (db && db.db) dbName = db.db;
+    } catch { /* log-only, ignore */ }
+    console.log(`[nullify-dead-local-images] db=${dbName} driver=${pool.isPostgres ? 'postgres' : 'mysql'}${DRY ? '  (DRY RUN — no writes)' : ''}`);
     let total = 0;
     total += await sweep('pesoadmin_job_posts', 'featured_image', 'Local Employment Board / job featured images');
     total += await sweep('peso_events', 'banner_image', 'PESO Events banners');
