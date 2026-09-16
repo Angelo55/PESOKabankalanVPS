@@ -177,6 +177,18 @@ async function main() {
 			console.log(`  ${t.padEnd(34)} loaded ${rows.length}`);
 		}
 
+		// Neutralize migrated OUTBOX rows so the live workers never re-send/re-dispatch
+		// referrals/emails/SMS that the ORIGINAL system already handled. Workers act only
+		// on status='pending'; 'migrated' is an inert sentinel (all these are varchar(20),
+		// no CHECK). 'done'/'failed'/'sent' terminal rows are already inert and untouched.
+		console.log('\n--- neutralizing migrated outbox rows (no re-send on resume) ---');
+		const OUTBOX = ['referral_jobs', 'email_outbox', 'sms_outbox', 'proactive_match_jobs', 'job_alert_jobs', 'application_scoring_jobs'];
+		for (const t of OUTBOX) {
+			if (!srcTables.has(t) || !colTypes[t] || !colTypes[t].has('status')) continue;
+			const r = await tgt.query(`UPDATE "${t}" SET status = 'migrated' WHERE status IN ('pending', 'processing')`);
+			console.log(`  ${t.padEnd(28)} neutralized ${r.rowCount} non-terminal row(s)`);
+		}
+
 		console.log('\n--- resetting identity sequences ---');
 		for (const t of order) {
 			if (!srcTables.has(t) || !idCols[t]) continue;
