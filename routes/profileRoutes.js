@@ -54,6 +54,7 @@ const certificatesRepository = require('../repositories/certificatesRepository')
 const onboardingService = require('../services/onboardingService');
 const multer = require('multer');
 const aiClient = require('../services/aiClient');
+const storageService = require('../services/storageService');
 const { getReferralPreference, setReferralPreference, REFERRAL_MODES } = require('../services/referralService');
 const phoneVerifyService = require('../services/phoneVerifyService');
 const { toE164PH } = require('../services/smsService');
@@ -447,6 +448,20 @@ const ACCEPTED_AVATAR_PREFIXES = [
 
 const isAcceptableAvatarDataUri = (value) =>
 	ACCEPTED_AVATAR_PREFIXES.some((prefix) => value.startsWith(prefix));
+
+// Raster (photo) data URIs are the ones worth offloading to object storage; SVG
+// gallery picks are tiny and stay inline in the DB.
+const isRasterAvatarDataUri = (value) =>
+	typeof value === 'string' && /^data:image\/(png|jpe?g|webp|gif);base64,/i.test(value);
+
+// Parse a base64 data URI into { buffer, mime, ext } for an object-storage upload.
+const AVATAR_EXT_BY_MIME = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' };
+const dataUriToParts = (value) => {
+	const m = /^data:([^;]+);base64,(.*)$/i.exec(value);
+	if (!m) throw new Error('not a base64 data URI');
+	const mime = m[1].toLowerCase();
+	return { buffer: Buffer.from(m[2], 'base64'), mime, ext: AVATAR_EXT_BY_MIME[mime] || 'bin' };
+};
 router.post('/avatar', writeLimiter, (req, res, next) => {
     upload.single('avatar')(req, res, function (err) {
         if (err) return res.status(400).json({ status: 'error', message: `Upload error: ${err.message}` });
@@ -484,13 +499,36 @@ router.post('/avatar', writeLimiter, (req, res, next) => {
                 ? clientThumb
                 : clientAvatar; // no usable thumb supplied -> reuse, still correct
 
+            // On a durable off-DB driver (supabase/r2), offload RASTER photos to the
+            // PUBLIC bucket and store the URL — keeps the users row (read on every login
+            // and every list showing a face) small. SVG gallery picks stay inline (tiny).
+            // Local driver keeps everything inline (small; local disk isn't backed up).
+            // A storage failure degrades to the inline data URI (invariant 0.1).
+            let storedAvatar = clientAvatar;
+            let storedThumb = thumb;
+            if (storageService.DRIVER !== 'local' && isRasterAvatarDataUri(clientAvatar)) {
+                try {
+                    const a = dataUriToParts(clientAvatar);
+                    storedAvatar = await storageService.save(`avatars/u${req.userId}-${Date.now()}.${a.ext}`, a.buffer, a.mime);
+                    if (isRasterAvatarDataUri(thumb)) {
+                        const t = dataUriToParts(thumb);
+                        storedThumb = await storageService.save(`avatars/u${req.userId}-${Date.now()}-t.${t.ext}`, t.buffer, t.mime);
+                    } else {
+                        storedThumb = storedAvatar;
+                    }
+                } catch (storeErr) {
+                    console.error(`[Avatar] object-store failed, keeping inline data URI: ${storeErr.message}`);
+                    storedAvatar = clientAvatar;
+                    storedThumb = thumb;
+                }
+            }
             await db.query(
                 'UPDATE users SET avatar_url = ?, avatar_thumb = ? WHERE id = ?',
-                [clientAvatar, thumb, req.userId]
+                [storedAvatar, storedThumb, req.userId]
             );
             return res.status(200).json({
                 status: 'success', message: 'Avatar updated.',
-                avatar_url: clientAvatar, avatar_thumb: thumb
+                avatar_url: storedAvatar, avatar_thumb: storedThumb
             });
         }
 
@@ -499,10 +537,19 @@ router.post('/avatar', writeLimiter, (req, res, next) => {
         // the size benefit until that client is updated.
         if (!req.file) return res.status(400).json({ status: 'error', message: 'No image provided.' });
 
-        const base64Image = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
-        await db.query('UPDATE users SET avatar_url = ?, avatar_thumb = NULL WHERE id = ?', [base64Image, req.userId]);
+        let storedRaw = null;
+        if (storageService.DRIVER !== 'local') {
+            try {
+                const ext = AVATAR_EXT_BY_MIME[(req.file.mimetype || '').toLowerCase()] || 'bin';
+                storedRaw = await storageService.save(`avatars/u${req.userId}-${Date.now()}.${ext}`, req.file.buffer, req.file.mimetype);
+            } catch (storeErr) {
+                console.error(`[Avatar] object-store failed, keeping inline data URI: ${storeErr.message}`);
+            }
+        }
+        if (!storedRaw) storedRaw = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+        await db.query('UPDATE users SET avatar_url = ?, avatar_thumb = NULL WHERE id = ?', [storedRaw, req.userId]);
 
-        res.status(200).json({ status: 'success', message: 'Avatar updated.', avatar_url: base64Image });
+        res.status(200).json({ status: 'success', message: 'Avatar updated.', avatar_url: storedRaw });
     } catch (error) {
         console.error("Avatar Upload Error:", error);
         res.status(500).json({ status: 'error', message: 'Failed to upload profile picture.' });
