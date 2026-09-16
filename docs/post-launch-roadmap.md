@@ -53,26 +53,23 @@ once traffic justifies it. Keep the split block commented in `ecosystem.config.j
 
 ---
 
-## Phase 1 — Staging environment
+## Phase 1 — Staging environment  *(decision: Option A — lightweight, staging DB only)*
 
-**Goal.** A safe place to rehearse Phase 2 (and every future change) before prod.
-Zero added cost: reuse the EC2, add a second free Supabase project.
+**Goal.** A safe place to rehearse Phase 2 (and future DB changes) before prod, at
+**zero infra cost**. A full EC2 staging site (subdomain + 2nd PM2 + cert — Option B)
+was considered and deferred; promote to it later only if a shareable UAT URL is needed.
 
-**Design.**
-- **Staging DB:** a 2nd Supabase **free** project (free tier allows 2). Apply
-  `postgres/schema.sql` to it (`node scripts/pg-bootstrap.js`), like prod.
-- **Staging app:** a 2nd PM2 app on the same EC2, **port 5001**, from a separate
-  checkout (`/var/www/pesokabankalan-staging`) on a `staging` branch (or the same
-  `main`), with its own `.env` (staging Supabase URL, `PORT=5001`,
-  `FRONTEND_URL=https://staging.pesokabankalan.tech`, its own OAuth redirect).
-- **Web:** Nginx server block for `staging.pesokabankalan.tech` → proxy to
-  `127.0.0.1:5001`; `certbot -d staging.pesokabankalan.tech`.
-- **DNS:** `A staging → 56.10.113.135`.
-- **Frontend:** build with `VITE_API_URL=https://staging.pesokabankalan.tech/api`.
-- **Google:** add the staging origin + redirect URI to the OAuth client.
+**Design (Option A).**
+- **Staging DB:** a 2nd Supabase **free** project (`peso-kabankalan-staging`,
+  region `ap-southeast-1`; free tier allows 2 projects). Apply `postgres/schema.sql`
+  with `scripts/pg-bootstrap.js` pointed at its **session-pooler** URL.
+- **Run against it on demand:** point a LOCAL run (or a temporary VPS run) at the
+  staging `DATABASE_URL` to rehearse a migration/change, verify, then apply to prod.
+- No subdomain, no 2nd cert, no 2nd PM2 process — nothing new to maintain.
 
-**Guardrail.** Staging uses its **own** Supabase project — never point staging at the
-prod DB. Keep staging behind a note that it is non-production.
+**Guardrail.** Never point the live prod process at the staging DB or vice-versa;
+keep the staging URL out of the committed repo (local shell / `.env` only). Rehearse
+every Phase 2 migration on staging first.
 
 ---
 
