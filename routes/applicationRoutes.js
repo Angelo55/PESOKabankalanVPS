@@ -51,6 +51,7 @@ const { scoreApplication } = require('../services/aiScoringService');
 const matchScoreCache = require('../services/matchScoreCache');
 const { referralService } = require('../services/referralService');
 const { renderResumeToBuffer } = require('../services/resumePdfService');
+const storageService = require('../services/storageService');
 const { notifyUser } = require('../services/notificationService');
 const certificatesRepository = require('../repositories/certificatesRepository');
 const applicationScoringService = require('../services/applicationScoringService');
@@ -342,7 +343,8 @@ router.post('/', applyLimiter, async (req, res) => {
                 application_id INT PRIMARY KEY,
                 file_name VARCHAR(255) NULL,
                 mime_type VARCHAR(100) NOT NULL DEFAULT 'application/pdf',
-                file_data LONGTEXT NOT NULL,
+                file_data LONGTEXT NULL,
+                file_key VARCHAR(512) NULL,
                 source VARCHAR(50) NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
         } catch (e) {}
@@ -529,11 +531,33 @@ router.post('/', applyLimiter, async (req, res) => {
                 }
             }
             if (resumeBuffer && resumeBuffer.length > 0) {
+                // Store the immutable PDF in object storage (PRIVATE) and keep only its
+                // key in the DB. If storage is unavailable, fall back to base64-in-DB so
+                // the snapshot is NEVER lost (invariant 0.1). Exactly one of file_key /
+                // file_data is set; the owner-scoped retrieval route reads whichever is present.
+                let fileKey = null;
+                let fileDataB64 = null;
+                if (storageService.DRIVER === 'local') {
+                    // Local disk is NOT backed up; the Supabase DB is. So on the local
+                    // driver keep the durable base64-in-DB copy. PII only moves to object
+                    // storage on a durable off-DB store (supabase/r2).
+                    fileDataB64 = resumeBuffer.toString('base64');
+                } else {
+                    try {
+                        fileKey = await storageService.savePrivate(
+                            `application-resumes/app-${insertResult.insertId}-${Date.now()}.pdf`,
+                            resumeBuffer, 'application/pdf'
+                        );
+                    } catch (storeErr) {
+                        console.error(`[Application] Resume object-store failed, falling back to DB base64: ${storeErr.message}`);
+                        fileDataB64 = resumeBuffer.toString('base64');
+                    }
+                }
                 await db.query(
-                    `INSERT INTO application_resumes (application_id, file_name, mime_type, file_data, source)
-                     VALUES (?, ?, 'application/pdf', ?, ?)
-                     ON DUPLICATE KEY UPDATE file_name = VALUES(file_name), file_data = VALUES(file_data), source = VALUES(source)`,
-                    [insertResult.insertId, storedName, resumeBuffer.toString('base64'), resumeSource]
+                    `INSERT INTO application_resumes (application_id, file_name, mime_type, file_data, file_key, source)
+                     VALUES (?, ?, 'application/pdf', ?, ?, ?)
+                     ON DUPLICATE KEY UPDATE file_name = VALUES(file_name), file_data = VALUES(file_data), file_key = VALUES(file_key), source = VALUES(source)`,
+                    [insertResult.insertId, storedName, fileDataB64, fileKey, resumeSource]
                 );
             }
         } catch (resumeErr) {

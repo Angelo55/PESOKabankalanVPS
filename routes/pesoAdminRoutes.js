@@ -861,7 +861,7 @@ router.get('/ats/jobs/:jobId/applicants', async (req, res) => {
 router.get('/ats/applications/:applicationId/resume', async (req, res) => {
     try {
         const [rows] = await db.query(
-            `SELECT ar.file_data, ar.file_name, ar.mime_type
+            `SELECT ar.file_data, ar.file_key, ar.file_name, ar.mime_type
              FROM application_resumes ar
              JOIN job_applications ja ON ja.id = ar.application_id
              JOIN pesoadmin_job_posts pj ON pj.id = ja.job_id
@@ -871,11 +871,24 @@ router.get('/ats/applications/:applicationId/resume', async (req, res) => {
         if (rows.length === 0) {
             return res.status(404).json({ status: 'error', message: 'No resume is on file for this application.' });
         }
-        const buffer = Buffer.from(rows[0].file_data, 'base64');
-        const safeName = (rows[0].file_name || 'resume.pdf').replace(/["\r\n]/g, '');
-        res.setHeader('Content-Type', rows[0].mime_type || 'application/pdf');
+        const row = rows[0];
+        const safeName = (row.file_name || 'resume.pdf').replace(/["\r\n]/g, '');
+        res.setHeader('Content-Type', row.mime_type || 'application/pdf');
         res.setHeader('Content-Disposition', `inline; filename="${safeName}"`);
-        res.send(buffer);
+        // Prefer the object-store copy (file_key); fall back to legacy base64 (file_data).
+        if (row.file_key) {
+            const obj = await storageService.getPrivate(row.file_key);
+            if (obj.contentLength) res.setHeader('Content-Length', obj.contentLength);
+            obj.stream.on('error', (streamErr) => {
+                console.error('Resume stream error:', streamErr.message);
+                if (!res.headersSent) res.status(500).end(); else res.destroy();
+            });
+            obj.stream.pipe(res);
+        } else if (row.file_data) {
+            res.send(Buffer.from(row.file_data, 'base64'));
+        } else {
+            res.status(404).json({ status: 'error', message: 'No resume is on file for this application.' });
+        }
     } catch (error) {
         console.error("Fetch Application Resume Error:", error);
         res.status(500).json({ status: 'error', message: 'Failed to retrieve the resume.' });

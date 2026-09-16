@@ -351,7 +351,8 @@ CREATE TABLE application_resumes (
 	application_id integer NOT NULL PRIMARY KEY,
 	file_name varchar(255) DEFAULT NULL,
 	mime_type varchar(100) NOT NULL DEFAULT 'application/pdf',
-	file_data text NOT NULL,
+	file_data text DEFAULT NULL,          -- legacy/fallback: base64 PDF (used only if object storage is unavailable)
+	file_key text DEFAULT NULL,           -- private object-storage key (preferred; storageService.getPrivate)
 	source varchar(50) DEFAULT NULL,
 	created_at timestamptz DEFAULT CURRENT_TIMESTAMP
 );
