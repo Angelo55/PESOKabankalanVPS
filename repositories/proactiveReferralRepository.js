@@ -121,7 +121,7 @@ const proactiveReferralRepository = {
 			: '';
 		const params = [];
 		if (includeHash) params.push(jobId); // the subquery's ? appears first in the SQL
-		params.push(jobId, jobId, jobLocation || '', jobLocation || '', safeCap);
+		params.push(jobId, jobId, jobLocation || '', `%${jobLocation || ''}%`, safeCap);
 		const [rows] = await conn.query(`
 			SELECT u.id AS user_id, u.name, u.email, u.location${hashSelect}
 			FROM users u
@@ -133,7 +133,7 @@ const proactiveReferralRepository = {
 			  AND NOT EXISTS (SELECT 1 FROM job_applications ja WHERE ja.applicant_id = u.id AND ja.job_id = ?)
 			  AND NOT EXISTS (SELECT 1 FROM proactive_referral_candidates prc
 			                  WHERE prc.job_id = ? AND prc.applicant_id = u.id AND prc.status IN ('Dismissed','Promoted'))
-			ORDER BY (CASE WHEN ? <> '' AND u.location LIKE CONCAT('%', ?, '%') THEN 1 ELSE 0 END) DESC, u.id DESC
+			ORDER BY (CASE WHEN ? <> '' AND u.location LIKE ? THEN 1 ELSE 0 END) DESC, u.id DESC
 			LIMIT ?
 		`, params);
 		return rows;

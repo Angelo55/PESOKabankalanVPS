@@ -113,9 +113,9 @@ const jobAlertsRepository = {
 			  AND COALESCE(jap.frequency, ?) <> 'off'
 			  AND EXISTS (SELECT 1 FROM uploaded_resumes ur WHERE ur.user_id = u.id AND ur.parsed_text IS NOT NULL AND ur.parsed_text <> '')
 			  AND NOT EXISTS (SELECT 1 FROM job_alerts_sent jas WHERE jas.user_id = u.id AND jas.job_id = ?)
-			ORDER BY (CASE WHEN ? <> '' AND u.location LIKE CONCAT('%', ?, '%') THEN 1 ELSE 0 END) DESC, u.id DESC
+			ORDER BY (CASE WHEN ? <> '' AND u.location LIKE ? THEN 1 ELSE 0 END) DESC, u.id DESC
 			LIMIT ?
-		`, [defaultFrequency, defaultFrequency, jobId, jobLocation || '', jobLocation || '', safeCap]);
+		`, [defaultFrequency, defaultFrequency, jobId, jobLocation || '', `%${jobLocation || ''}%`, safeCap]);
 		return rows;
 	},
 
