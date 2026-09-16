@@ -73,7 +73,27 @@ every Phase 2 migration on staging first.
 
 ---
 
-## Phase 2 — R2 for PII binaries + DB capacity  *(decision: option a)*
+## Phase 2 — object storage for PII binaries + DB capacity  *(decision: Supabase Storage)*
+
+**Provider decision (2026-09-16): Supabase Storage, not Cloudflare R2.** It's already
+in the project, S3-compatible (reuses `@aws-sdk/client-s3`), and its 1 GB free storage
+is separate from the 500 MB DB cap. Audit showed prod is ~13 MB with almost no PII, so
+this is proactive plumbing (future uploads land in storage, no big migration).
+
+**STATUS — code SHIPPED (avatars + résumé snapshots), activation pending S3 keys:**
+- Buckets created: `avatars` (public) + `resumes` (private) via
+  `scripts/provision-supabase-storage.js`.
+- `storageService` gained a `supabase` driver + private save/stream/remove.
+- Résumé snapshots → private bucket, streamed through the owner-scoped API; avatars →
+  public bucket URL. Both gated on a durable off-DB driver — on `local` they stay
+  base64-in-DB (no durability regression), so the code is a no-op until
+  `STORAGE_DRIVER=supabase`. Schema: `application_resumes.file_key` (Supabase ALTER
+  applied; `schema.sql` + migration 054 updated).
+- **Remaining to activate:** generate Supabase S3 keys (dashboard → Storage → S3 Access
+  Keys) → set `STORAGE_DRIVER=supabase` + `SUPABASE_S3_ACCESS_KEY_ID/SECRET` in `.env`
+  (local to test, then VPS) → `git pull` + `pm2 reload`. Letters/certs deferred.
+
+### (Original R2 plan, superseded by Supabase Storage above)
 
 **Why.** Supabase free tier caps the **DB at 500 MB**. Today PII binaries are base64
 in Postgres — `application_resumes` (a full PDF per application), résumé uploads,
