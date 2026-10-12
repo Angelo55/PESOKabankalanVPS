@@ -3421,3 +3421,8 @@ READ-ONLY deploy key `peso-ec2` (left from the old `56.10.113.135` host; optiona
 HTTPS from the public repo. The original repo (`PESO-Kabankalan`) deploys only to its own EC2 via ONE runner. Open item:
 this box began as a copy of the original prod disk, so check `/home/ubuntu` for a leftover GitHub credential (original
 repo `docs/vps-deployment.md` §10.1 "Isolation check") and remove it.
+
+### 74.10 Leftover GitHub token removed (2026-10-13)
+The §74.9 check found `/home/ubuntu/.git-credentials` on this box: the ORIGINAL system's production fetch token
+(copied with the disk). Deleted, `credential.helper` unset; this checkout fetches the public repo with no credential
+(`FETCH-OK`). The owner revoked that token in GitHub; the original production now has its own read-only token.
