@@ -3414,3 +3414,10 @@ keys (original repo dev-history §128). Fixed:
 - Removed from the box: the original system's certificates (`pesokabankalanjobs.tech`, `api.`, `staging.`),
   `/var/www/peso` (with its production `.env`), the original repo's runner folder + systemd unit.
 Box now: `/var/www/{html,pesokabankalan}`, PM2 `peso-app` only. Never deploy the original TiDB repo here.
+
+### 74.9 Isolation from the original system (2026-10-13)
+Verified from GitHub: this repo has NO workflow and NO runner (a push here deploys nothing), no webhook/secret, and one
+READ-ONLY deploy key `peso-ec2` (left from the old `56.10.113.135` host; optional to delete). The box's checkout is plain
+HTTPS from the public repo. The original repo (`PESO-Kabankalan`) deploys only to its own EC2 via ONE runner. Open item:
+this box began as a copy of the original prod disk, so check `/home/ubuntu` for a leftover GitHub credential (original
+repo `docs/vps-deployment.md` §10.1 "Isolation check") and remove it.
