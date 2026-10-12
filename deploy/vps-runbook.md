@@ -119,6 +119,11 @@ sudo certbot --nginx -d pesokabankalan.tech -d www.pesokabankalan.tech
 sudo systemctl reload nginx
 ```
 
+> **Renewal check (2026-10-13):** a certificate issued in `standalone` mode cannot renew while Nginx holds port 80.
+> Confirm `sudo grep -E "^(authenticator|installer)" /etc/letsencrypt/renewal/pesokabankalan.tech.conf` shows
+> `nginx` for both (edit them if not), then `sudo certbot renew --cert-name pesokabankalan.tech --dry-run`.
+> Current host: public `13.215.135.101` (dev-history §74.8); the old `56.10.113.135` is gone.
+
 ## 8. Google console (OAuth for the domain)
 Google Cloud → APIs & Services → Credentials → your OAuth client:
 - Authorized JavaScript origins: `https://pesokabankalan.tech`

@@ -3388,3 +3388,29 @@ Schema was already ported (`postgres/schema.sql`, 58 tables) → DATA-only. `scr
 
 **Deferred (roadmap `docs/post-launch-roadmap.md`):** worker-split + Redis for real-time; Semaphore SMS funding; a persistent staging env (blocked by Supabase's 2-project free limit — use local Docker Postgres or the migration dry-run); offloading existing base64 PII to storage.
 
+### 74.8 Re-deploy on the current box (2026-10-13)
+The original host (`t3.small`, EIP `56.10.113.135`) no longer answers. `pesokabankalan.tech` now points to a box in the
+owner's other AWS account (public `13.215.135.101`, private `ip-172-31-42-203`). That box had been running a copy of
+the ORIGINAL TiDB repo (`/var/www/peso`, TiDB `.env`, PM2 `peso-api`) — i.e. the site was NOT this Supabase line and its
+workers wrote to the original system's production database; it also held the original system's GitHub runner and TLS
+keys (original repo dev-history §128). Fixed:
+- This repo cloned to `/var/www/pesokabankalan` (repo made PUBLIC by the owner; `/var/www` is root-owned → create the
+  folder with sudo and `chown ubuntu`), `.env` from `.env.example` (DB_CLIENT=postgres, Supabase SESSION POOLER URL,
+  DB_SSL, new JWT_SECRET, domain URLs, Google, Brevo `mail@pesokabankalan.tech`, DeepSeek + DeepL, `STORAGE_DRIVER=local`;
+  NO R2 / Make webhook / SMS keys so it cannot act on the original system's services). Frontend built on the box with
+  `VITE_API_URL=https://pesokabankalan.tech/api` + `VITE_GOOGLE_CLIENT_ID`.
+- PM2 `peso-api` (TiDB copy) deleted, `peso-app` started (`ecosystem.config.js`), `pm2 save`. Boot log:
+  `[DB] Connected (postgres)` → PostgreSQL 17.6, `brevo-http` verified, SmsWorker dark.
+- Gotchas hit: `.env` had the example's `postgres.<project-ref>` placeholder line after the real one (last wins) →
+  ENOTFOUND; then `postgresql:postgresql://…` (scheme pasted twice) → pg fell back to `127.0.0.1:5432`. Keep ONE
+  `DATABASE_URL` line; check with a parser that masks the password before printing anything. The DB password was
+  exposed in chat during this and was reset by the owner.
+- Nginx: the existing site file `/etc/nginx/sites-enabled/peso-apex` (serves `pesokabankalan.tech` + `www`, proxy to
+  :5000) had `root /var/www/peso/...` → switched to `/var/www/pesokabankalan/job-tracker-frontend/dist` (backup
+  `/home/ubuntu/peso-apex.backup-2026-10-13`), `nginx -t` + reload.
+- TLS: cert `pesokabankalan.tech` (+www) valid to 2027-01-09; renewal used `authenticator = standalone` → failed (port 80
+  in use by Nginx) → set `authenticator = nginx` / `installer = nginx` in `/etc/letsencrypt/renewal/pesokabankalan.tech.conf`
+  (backup in /home/ubuntu); `certbot renew --dry-run` succeeded.
+- Removed from the box: the original system's certificates (`pesokabankalanjobs.tech`, `api.`, `staging.`),
+  `/var/www/peso` (with its production `.env`), the original repo's runner folder + systemd unit.
+Box now: `/var/www/{html,pesokabankalan}`, PM2 `peso-app` only. Never deploy the original TiDB repo here.
